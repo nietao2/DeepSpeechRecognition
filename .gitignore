@@ -2,3 +2,11 @@
 *.pyc
 *.mdl
 *.wav
+/logs_am_new_2/
+/logs_am_new/
+/logs_am/
+/logs/
+/checkpoint/
+/data/data_thchs30/
+/logs_lm/
+/logs_lm_new/
