@@ -14,7 +14,12 @@ def train():
     hp = transformer_hparams()
     hp.input_vocab_size = len(input_vocab)
     hp.label_vocab_size = len(label_vocab)
-    lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=None)
+    config = tf.ConfigProto()
+    config.intra_op_parallelism_threads = 4
+    config.inter_op_parallelism_threads = 4
+    run_config = tf.estimator.RunConfig().replace(
+        session_config=config)
+    lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=run_config)
 
     epochs = 1000
     for i in range(epochs):

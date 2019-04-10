@@ -52,7 +52,7 @@ params= {
     'feature_columns': feature_columns
 }
 # model_dir = os.path.join()
-am = AMEstimator(len(train_data.am_vocab), 'train', train_data.am_vocab, '/Users/nietao/IdeaProjects/DeepSpeechRecognition/logs_am_new_2', params, tf.estimator.RunConfig())
+am = AMEstimator(len(train_data.am_vocab), 'train', train_data.am_vocab, './logs_am_new_2', params, tf.estimator.RunConfig())
 
 def parse_example(serial_exmp, input_size):
     feats = tf.parse_single_example(serial_exmp,

@@ -12,8 +12,6 @@ class LMDataset():
         self.input_vocab = input_vocab
         self.label_vocab = label_vocab
 
-
-
     def _generator_fn(self):
         for input, label in zip(self.pny_lst, self.han_lst):
             x = self._encode(input, self.input_vocab)

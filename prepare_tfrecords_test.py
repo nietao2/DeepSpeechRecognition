@@ -7,7 +7,7 @@ from tqdm import tqdm
 from scipy.fftpack import fft
 from python_speech_features import mfcc
 from random import shuffle
-from keras import backend as K
+# from keras import backend as K
 
 # output file name string to a queue
 filename_queue = tf.train.string_input_producer(['data/train3.tfrecord'], num_epochs=None)
