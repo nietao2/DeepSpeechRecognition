@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tf-serving-partition-1
+  namespace: hhxn-test
+  labels:
+    app: tf-serving-partition-1
+spec:
+  ports:
+  - port: 8501
+    name: http
+  - port: 8500
+    name: grpc
+  selector:
+    app: tf-serving-partition-1
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: tf-serving-partition-1
+  namespace: hhxn-test
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: tf-serving-partition-1
+        version: v1
+    spec:
+      volumes:
+      - name: model-volume
+        hostPath:
+          path: /Users/nietao/IdeaProjects/DeepSpeechRecognition/export
+      containers:
+      - name: tf-serving
+        image: tensorflow/serving:1.13.0
+        imagePullPolicy: IfNotPresent
+        env: #设置环境变量
+        - name: MODEL_NAME
+          value: "am"
+        volumeMounts:
+        - name: model-volume
+          mountPath: /models/am/1
+          subPath: '1554974141'
+        resources:
+          limits:
+            cpu: 500m
+            memory: 2G
+#            alpha.kubernetes.io/nvidia-gpu: 1
+          requests:
+            cpu: 500m
+            memory: 2G
+        ports:
+        - containerPort: 8501
+        - containerPort: 8500
+---

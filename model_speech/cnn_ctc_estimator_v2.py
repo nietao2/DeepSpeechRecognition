@@ -30,7 +30,7 @@ class AMEstimator(tf.estimator.Estimator):
 
         logits = self.dense(self.vocab_size, activation=None)(net)
         # input_length = tf.squeeze(features['input_length'], axis=-1)
-        input_length = features['input_length']
+        input_length = tf.cast(features['input_length'], tf.int32)
         # decoded_dense, log_prob = K.ctc_decode(logits, input_length, greedy = True, beam_width=10, top_paths=1)
 
         # logits_softmax = tf.nn.softmax(logits)
@@ -48,17 +48,17 @@ class AMEstimator(tf.estimator.Estimator):
         if mode == tf.estimator.ModeKeys.PREDICT:
             predictions = {
                 'text_ids': decoded_dense,
-                'probabilities': log_prob,
-                'logits': logits,
-                "input_length": input_length,
-                'y_true': tf.sparse.to_dense(features['the_labels'], default_value=0),
+                # 'probabilities': log_prob,
+                # 'logits': logits,
+                # "input_length": input_length,
+                # 'y_true': tf.sparse.to_dense(labels['the_labels'], default_value=0),
                 # 'label_length': features['label_length']
             }
             return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
-        # label_length = features['label_length']
-        # sparse_labels = tf.to_int32(K.ctc_label_dense_to_sparse(features['the_labels'], label_length))
-        sparse_labels = features['the_labels']
+        # label_length = tf.cast(features['label_length'], tf.int32)
+        # sparse_labels = tf.cast(K.ctc_label_dense_to_sparse(features['the_labels'], label_length), tf.int32)
+        sparse_labels = labels['the_labels']
 
         loss_out = tf.nn.ctc_loss(
             inputs=logits, labels=sparse_labels, sequence_length=input_length, time_major=False)

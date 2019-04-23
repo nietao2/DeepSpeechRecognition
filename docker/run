@@ -1,0 +1,1 @@
+docker run -it -p 8500:8500 -p 8501:8501 --mount type=bind,source=/Users/nietao/IdeaProjects/DeepSpeechRecognition/export/1555058268,target=/models/am/1 -e MODEL_NAME=am -t tensorflow/serving:1.13.0

@@ -53,39 +53,49 @@ class AudioDataset():
             label_ctc_len = self.ctc_len(label)
             if pad_fbank.shape[0] // 8 >= label_ctc_len:
                 inputs = {'the_inputs': pad_fbank,
-                          'the_labels': label,
+                          # 'the_labels': label,
                           'input_length': len(pad_fbank) // 8,
-                          'label_length': len(label),
+                          # 'label_length': len(label),
                           }
-                yield inputs
+                labels = {
+                    'the_labels': label
+                }
+                yield inputs, labels
 
-    def _map_func(self, input):
-        input['the_labels'] = tf.contrib.layers.dense_to_sparse(input['the_labels'])
+    def _map_func(self, inputs, labels):
+        labels['the_labels'] = tf.contrib.layers.dense_to_sparse(labels['the_labels'])
+        inputs['input_length'] = tf.cast(inputs['input_length'], tf.int32)
         # inputs['the_inputs'] = tf.contrib.layers.dense_to_sparse(inputs['the_inputs'])
-        return input
+        return inputs, labels
 
-    def _batch_fn(self, input):
-        return tf.data.Dataset.zip({'the_inputs':input['the_inputs'].padded_batch(self.batch_size, padded_shapes=[None, 200]),
-                                    'the_labels':input['the_labels'].batch(self.batch_size),
-                                    'input_length':input['input_length'].batch(self.batch_size)})
+    def _batch_fn(self, inputs, labels):
+        return tf.data.Dataset.zip(
+            ({'the_inputs': inputs['the_inputs'].padded_batch(self.batch_size, padded_shapes=[None, 200]),
+              # 'the_labels':inputs['the_labels'].batch(self.batch_size),
+              'input_length': inputs['input_length'].batch(self.batch_size)},
+             {
+                 'the_labels': labels['the_labels'].batch(self.batch_size)
+             }))
 
     def _input_fn(self, mode, shuffle=True):
-        output_types = {
-            'the_inputs': tf.float32,
-            'the_labels': tf.int32,
-            'input_length': tf.int32,
-            'label_length': tf.int32
-        }
-        output_shapes = {'the_inputs': [None, 200],'the_labels': [None], 'input_length': [], 'label_length': []}
+        output_types = ({
+                            'the_inputs': tf.float32,
+                            # 'the_labels': tf.int64,
+                            'input_length': tf.int64,
+                            # 'label_length': tf.int64
+                        }, {
+                            'the_labels': tf.int32
+                        })
+        output_shapes = ({'the_inputs': [None, 200], 'input_length': []}, {'the_labels': [None]})
         dataset = tf.data.Dataset.from_generator(self._generator_fn,
-                                                 output_types = output_types,
+                                                 output_types=output_types,
                                                  output_shapes=output_shapes,
                                                  args=None)
         dataset = dataset.map(self._map_func, num_parallel_calls=8)
-        if mode == 'train' and shuffle: # for training
-            dataset = dataset.shuffle(128*self.batch_size)
-        # dataset = dataset.padded_batch(batch_size,
-        #                                padded_shapes={'the_inputs': [None, 200], 'input_length': [], 'label_length': []},
+        if mode == 'train' and shuffle:  # for training
+            dataset = dataset.shuffle(128 * self.batch_size)
+        # dataset = dataset.padded_batch(self.batch_size,
+        #                                padded_shapes=output_shapes
         #                                # padding_values={'the_inputs': 0.0,'the_labels': 0, 'input_length': 0, 'label_length': 0}
         #                                )
         # dataset = dataset.batch(batch_size)

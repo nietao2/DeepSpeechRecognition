@@ -30,9 +30,9 @@ for r in result:
         text.append(label_vocab[i])
     text = ' '.join(text)
     print('文本结果：', text)
-    text = []
-    for i in r['y_true']:
-        text.append(label_vocab[i])
-    text = ' '.join(text)
-    print('原文结果：', text)
+    # text = []
+    # for i in r['y_true']:
+    #     text.append(label_vocab[i])
+    # text = ' '.join(text)
+    # print('原文结果：', text)
 # print('原文结果：', ' '.join(feats['the_labels']))
