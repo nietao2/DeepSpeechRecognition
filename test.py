@@ -13,13 +13,13 @@ train_data = get_data(data_args)
 
 
 # 1.声学模型-----------------------------------
-from model_speech.cnn_ctc import Am, am_hparams
-
-am_args = am_hparams()
-am_args.vocab_size = len(train_data.am_vocab)
-am = Am(am_args)
-print('loading acoustic model...')
-am.ctc_model.load_weights('logs_am/model.h5')
+# from model_speech.cnn_ctc import Am, am_hparams
+#
+# am_args = am_hparams()
+# am_args.vocab_size = len(train_data.am_vocab)
+# am = Am(am_args)
+# print('loading acoustic model...')
+# am.ctc_model.load_weights('logs_am/model.h5')
 
 # 2.语言模型-------------------------------------------
 from model_language.transformer import Lm, lm_hparams
@@ -34,7 +34,7 @@ sess = tf.Session(graph=lm.graph)
 with lm.graph.as_default():
     saver =tf.train.Saver()
 with sess.as_default():
-    latest = tf.train.latest_checkpoint('logs_lm_new')
+    latest = tf.train.latest_checkpoint('logs_lm')
     saver.restore(sess, latest)
 
 # 3. 准备测试所需数据， 不必和训练数据一致，通过设置data_args.data_type测试，
@@ -55,12 +55,12 @@ for i in range(10):
     inputs, _ = next(am_batch)
     x = inputs['the_inputs']
     y = test_data.pny_lst[i]
-    result = am.model.predict(x, steps=1)
+    # result = am.model.predict(x, steps=1)
     # 将数字结果转化为文本结果
-    _, text = decode_ctc(result, train_data.am_vocab)
-    text = ' '.join(text)
-    print('文本结果：', text)
-    print('原文结果：', ' '.join(y))
+    # _, text = decode_ctc(result, train_data.am_vocab)
+    # text = ' '.join(text)
+    # print('文本结果：', text)
+    # print('原文结果：', ' '.join(y))
     with sess.as_default():
         text = text.strip('\n').split(' ')
         x = np.array([train_data.pny_vocab.index(pny) for pny in text])

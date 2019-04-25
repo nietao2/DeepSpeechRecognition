@@ -12,7 +12,7 @@ def train():
     input_vocab, label_vocab = load_vocab(
         ['./data/thchs_train.txt', './data/thchs_dev.txt', './data/thchs_test.txt'])
     # pny_lst, han_lst = load_data(['./data/thchs_train.txt'], size=4)
-    dev_pny_lst, dev_han_lst = load_data(['./data/thchs_test.txt'], size=4)
+    dev_pny_lst, dev_han_lst = load_data(['./data/thchs_train.txt'], size=10)
     hp = transformer_hparams()
     hp.input_vocab_size = len(input_vocab)
     hp.label_vocab_size = len(label_vocab)
@@ -23,7 +23,7 @@ def train():
         session_config=config)
     lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=run_config)
 
-    result = lm.predict(input_fn = lambda: input_fn('pred', 4, hp.input_maxlen, hp.label_maxlen, dev_pny_lst, dev_han_lst, input_vocab,
+    result = lm.predict(input_fn = lambda: input_fn("pred", 4, hp.input_maxlen, hp.label_maxlen, dev_pny_lst, dev_han_lst, input_vocab,
                                                                                            label_vocab),
                         predict_keys=None,
                         hooks=None,

@@ -94,16 +94,19 @@ lm = Lm(lm_args)
 epochs = 10
 with lm.graph.as_default():
     saver =tf.train.Saver()
-with tf.Session(graph=lm.graph) as sess:
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+with tf.Session(graph=lm.graph, config=config) as sess:
     merged = tf.summary.merge_all()
     sess.run(tf.global_variables_initializer())
     add_num = 0
-    if os.path.exists('logs_lm_new/checkpoint'):
+    if os.path.exists('logs_lm/checkpoint'):
         print('loading language model...')
-        latest = tf.train.latest_checkpoint('logs_lm_new')
+        latest = tf.train.latest_checkpoint('logs_lm')
         add_num = int(latest.split('_')[-1])
         saver.restore(sess, latest)
-    writer = tf.summary.FileWriter('logs_lm_new/tensorboard', tf.get_default_graph())
+    writer = tf.summary.FileWriter('logs_lm/tensorboard', tf.get_default_graph())
     for k in range(epochs):
         total_loss = 0
         batch = train_data.get_lm_batch()
@@ -116,5 +119,5 @@ with tf.Session(graph=lm.graph) as sess:
                 rs=sess.run(merged, feed_dict=feed)
                 writer.add_summary(rs, k * batch_num + i)
         print('epochs', k+1, ': average loss = ', total_loss/batch_num)
-    saver.save(sess, 'logs_lm_new/model_%d' % (epochs + add_num))
+    saver.save(sess, 'logs_lm/model_%d' % (epochs + add_num))
     writer.close()

@@ -13,8 +13,8 @@ def transformer_hparams():
         input_vocab_size = 50,
         label_vocab_size = 50,
         # embedding size
-        input_maxlen = 50,
-        label_maxlen = 50,
+        input_maxlen = 60,
+        label_maxlen = 60,
         num_units = 512,
         dropout_rate = 0.2,
         lr = 0.0001,

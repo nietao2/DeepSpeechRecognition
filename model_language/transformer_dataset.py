@@ -16,14 +16,14 @@ class LMDataset():
         for input, label in zip(self.pny_lst, self.han_lst):
             x = self._encode(input, self.input_vocab)
             label = ''.join(label.split(' '))
-            if mode == 'pred':
-                y = [0] * len(label) + [0]
+            if mode == b'pred':
+                y = [1]  * (len(label) + 2)
             else:
-                y = self._encode(label, self.label_vocab)
+                y = [1] + self._encode(label, self.label_vocab)
 
             x = x + [0] * (self.input_max_len - len(x) - 1)
 
-            y = y + [0] * (self.label_max_len - len(y) - 1)
+            y = y + [0] * (self.label_max_len - len(y) - 2)
             inputs = {'x': x,
                       'y': y,
                       }
@@ -74,7 +74,8 @@ def load_data(file_paths, size=None):
 
 def load_vocab(file_paths):
     input_vocab = ['<pad>']
-    label_vocab = ['<pad>']
+    label_vocab = ['<pad>','<start>']
+
     for file in tqdm(file_paths):
         with open(file, mode='r', encoding='utf-8') as f:
             data = f.readlines()
