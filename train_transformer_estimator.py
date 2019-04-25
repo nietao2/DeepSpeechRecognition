@@ -15,8 +15,8 @@ def train():
     hp.input_vocab_size = len(input_vocab)
     hp.label_vocab_size = len(label_vocab)
     config = tf.ConfigProto()
-    config.intra_op_parallelism_threads = 4
-    config.inter_op_parallelism_threads = 4
+    config.intra_op_parallelism_threads = 8
+    config.inter_op_parallelism_threads = 8
     run_config = tf.estimator.RunConfig().replace(
         session_config=config)
     lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=run_config)

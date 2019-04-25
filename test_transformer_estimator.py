@@ -1,4 +1,6 @@
 import sys
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 
 import tensorflow as tf
 
@@ -9,8 +11,8 @@ from model_language.transformer_estimator import LMTransformer, transformer_hpar
 def train():
     input_vocab, label_vocab = load_vocab(
         ['./data/thchs_train.txt', './data/thchs_dev.txt', './data/thchs_test.txt'])
-    pny_lst, han_lst = load_data(['./data/thchs_train.txt'], size=4)
-    # dev_pny_lst, dev_han_lst = load_data(['./data/thchs_dev.txt'])
+    # pny_lst, han_lst = load_data(['./data/thchs_train.txt'], size=4)
+    dev_pny_lst, dev_han_lst = load_data(['./data/thchs_test.txt'], size=4)
     hp = transformer_hparams()
     hp.input_vocab_size = len(input_vocab)
     hp.label_vocab_size = len(label_vocab)
@@ -21,23 +23,7 @@ def train():
         session_config=config)
     lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=run_config)
 
-    # epochs = 1000
-    # for i in range(epochs):
-    #     tf.logging.info('############################## starting epoch {} #########################'.format(i+1))
-    #     lm.train(input_fn=lambda: input_fn('train', 4, hp.input_maxlen, hp.label_maxlen, pny_lst, han_lst, input_vocab,
-    #                                        label_vocab),
-    #              hooks=None,
-    #              steps=None,
-    #              max_steps=None,
-    #              saving_listeners=None)
-    #     lm.evaluate(input_fn=lambda: input_fn('eval', 4, hp.input_maxlen, hp.label_maxlen, dev_pny_lst, dev_han_lst, input_vocab,
-    #                                        label_vocab),
-    #                 steps=None,  # Number of steps for which to evaluate model.
-    #                 hooks=None,
-    #                 checkpoint_path=None,  # latest checkpoint in model_dir is used.
-    #                 name=None)
-
-    result = lm.predict(input_fn = lambda: input_fn('pred', 4, hp.input_maxlen, hp.label_maxlen, pny_lst, han_lst, input_vocab,
+    result = lm.predict(input_fn = lambda: input_fn('pred', 4, hp.input_maxlen, hp.label_maxlen, dev_pny_lst, dev_han_lst, input_vocab,
                                                                                            label_vocab),
                         predict_keys=None,
                         hooks=None,
@@ -50,7 +36,11 @@ def train():
         # print(r['input_length'])
         # print(r['label_length'])
         for i in r['predicts']:
-            text.append(label_vocab[i])
+            t = label_vocab[i]
+            if t == '<end>':
+                break
+            else:
+                text.append(label_vocab[i])
         text = ' '.join(text)
         print('文本结果：', text)
 

@@ -17,20 +17,20 @@ class LMDataset():
             x = self._encode(input, self.input_vocab)
             label = ''.join(label.split(' '))
             if mode == 'pred':
-                y = [0] * len(label)
+                y = [0] * len(label) + [0]
             else:
                 y = self._encode(label, self.label_vocab)
 
-            x = x + [0] * (self.input_max_len - len(x))
+            x = x + [0] * (self.input_max_len - len(x) - 1)
 
-            y = y + [0] * (self.label_max_len - len(y))
+            y = y + [0] * (self.label_max_len - len(y) - 1)
             inputs = {'x': x,
                       'y': y,
                       }
             yield inputs
 
     def _encode(self, list, vocab):
-        return [vocab.index(term) for term in list]
+        return [vocab.index(term) for term in list] + [len(vocab)-1]
 
     def _input_fn(self, mode, batch_size, shuffle=True):
         # output_type = ((tf.int32), (tf.int32))
@@ -74,7 +74,7 @@ def load_data(file_paths, size=None):
 
 def load_vocab(file_paths):
     input_vocab = ['<pad>']
-    label_vocab = ['<PAD>']
+    label_vocab = ['<pad>']
     for file in tqdm(file_paths):
         with open(file, mode='r', encoding='utf-8') as f:
             data = f.readlines()
@@ -87,4 +87,6 @@ def load_vocab(file_paths):
                 for term in han:
                     if term not in label_vocab:
                         label_vocab.append(term)
+    input_vocab.append('<end>')
+    label_vocab.append('<end>')
     return input_vocab, label_vocab
