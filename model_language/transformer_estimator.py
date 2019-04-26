@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 
 import tensorflow as tf
@@ -38,7 +40,7 @@ class LMTransformer(tf.estimator.Estimator):
     def _model_fn(self, features, labels, mode, params):
         #1. input embeding/output embeding
         x = self.embedding(features['x'], self.hp.input_vocab_size, self.hp.num_units, scope='input_embedding')
-        y = self.embedding(features['y'], self.hp.label_vocab_size, self.hp.num_units, scope='output_embedding')
+        y = self.embedding(features['decoder_input'], self.hp.label_vocab_size, self.hp.num_units, scope='output_embedding')
         #2. position encoding
         x += self.positional_encoding(x, self.hp.input_maxlen)
         x = tf.layers.dropout(x, self.hp.dropout_rate)
@@ -59,12 +61,13 @@ class LMTransformer(tf.estimator.Estimator):
             }
             return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
-        label_smooth = self.label_smoothing(tf.one_hot(features['y'], depth=self.hp.label_vocab_size))
+        label_smooth = self.label_smoothing(tf.one_hot(labels['y'], depth=self.hp.label_vocab_size))
         ce = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=label_smooth)
-        nonpadding = tf.to_float(tf.not_equal(features['y'], 0))  # 0: <pad>
+        nonpadding = tf.to_float(tf.not_equal(labels['y'], 0))  # 0: <pad>
+        # tf.print(nonpadding, output_stream=tf.logging.INFO)
         loss = tf.reduce_sum(ce * nonpadding) / (tf.reduce_sum(nonpadding) + 1e-7)
         if mode == tf.estimator.ModeKeys.EVAL:
-            acc = tf.metrics.mean(tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), features['y']))*nonpadding)/ (tf.reduce_sum(nonpadding)))
+            acc = tf.metrics.mean(tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels['y']))*nonpadding)/ (tf.reduce_sum(nonpadding)))
             # acc = tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels))*nonpadding)/ (tf.reduce_sum(nonpadding))
             tf.summary.scalar('acc', acc[1])
             metrics = {'acc': acc}

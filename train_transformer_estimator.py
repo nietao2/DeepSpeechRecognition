@@ -7,6 +7,7 @@ from model_language.transformer_estimator import LMTransformer, transformer_hpar
 
 
 def train():
+    tf.enable_eager_execution()
     input_vocab, label_vocab = load_vocab(
         ['./data/thchs_train.txt', './data/thchs_dev.txt', './data/thchs_test.txt'])
     pny_lst, han_lst = load_data(['./data/thchs_train.txt'])

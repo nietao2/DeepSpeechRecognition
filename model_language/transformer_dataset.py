@@ -14,20 +14,26 @@ class LMDataset():
 
     def _generator_fn(self, mode):
         for input, label in zip(self.pny_lst, self.han_lst):
-            x = self._encode(input, self.input_vocab)
+            input_lst = input + ["<end>"]
+            x = self._encode(input_lst, self.input_vocab)
             label = ''.join(label.split(' '))
+            label_lst = ["<start>"] + [l for l in label] + ["<end>"]
             if mode == b'pred':
-                y = [1]  * (len(label) + 2)
+                y = [1] * len(label_lst)
             else:
-                y = [1] + self._encode(label, self.label_vocab)
+                y = self._encode(label_lst, self.label_vocab)
+
+            decoder_input, y = y[:-1], y[1:]
 
             x = x + [0] * (self.input_max_len - len(x) - 1)
 
-            y = y + [0] * (self.label_max_len - len(y) - 2)
+            decoder_input = decoder_input + [0] * (self.label_max_len - len(decoder_input) -1)
+            y = y + [0] * (self.label_max_len - len(y) - 1)
             inputs = {'x': x,
-                      'y': y,
+                      'decoder_input': decoder_input,
                       }
-            yield inputs
+            outputs ={'y': y}
+            yield inputs, outputs
 
     def _encode(self, list, vocab):
         return [vocab.index(term) for term in list] + [len(vocab)-1]
@@ -35,10 +41,12 @@ class LMDataset():
     def _input_fn(self, mode, batch_size, shuffle=True):
         # output_type = ((tf.int32), (tf.int32))
         # output_shapes = ([None], [None])
-        output_shapes = ({'x': [None], 'y': [None]})
+        output_shapes = ({'x': [None], 'decoder_input': [None]}, {'y': [None]})
         output_types = ({
                             'x': tf.int32,
-                            'y': tf.int32,
+                            'decoder_input': tf.int32,
+                        }, {
+                            'y': tf.int32
                         })
         dataset = tf.data.Dataset.from_generator(self._generator_fn,
                                                  output_types = output_types,
