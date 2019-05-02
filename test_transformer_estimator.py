@@ -1,3 +1,5 @@
+#coding=utf-8
+
 import sys
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
@@ -12,7 +14,7 @@ def train():
     input_vocab, label_vocab = load_vocab(
         ['./data/thchs_train.txt', './data/thchs_dev.txt', './data/thchs_test.txt'])
     # pny_lst, han_lst = load_data(['./data/thchs_train.txt'], size=4)
-    dev_pny_lst, dev_han_lst = load_data(['./data/thchs_train.txt'], size=10)
+    dev_pny_lst, dev_han_lst = load_data(['./data/thchs_train.txt'], size=4)
     hp = transformer_hparams()
     hp.input_vocab_size = len(input_vocab)
     hp.label_vocab_size = len(label_vocab)
@@ -21,12 +23,17 @@ def train():
     config.inter_op_parallelism_threads = 4
     run_config = tf.estimator.RunConfig().replace(
         session_config=config)
-    lm = LMTransformer(hp, model_dir='logs_lm_new', params=None, config=run_config)
-
+    lm = LMTransformer(hp, model_dir='logs_lm_new_5', params=None, config=run_config)
+    logging_hook = tf.train.LoggingTensorHook({
+                                               "predicts":"predicts",
+                                               "decoder_input":"IteratorGetNext:0",
+                                               # "future_mask":"decoder/decoder_blocks_0/self_attention/scaled_dot_product_attention/future_mask",
+                                               # "future_label":"decoder/decoder_blocks_0/self_attention/scaled_dot_product_attention/future_label",
+                                               }, every_n_iter=1)
     result = lm.predict(input_fn = lambda: input_fn("pred", 4, hp.input_maxlen, hp.label_maxlen, dev_pny_lst, dev_han_lst, input_vocab,
                                                                                            label_vocab),
                         predict_keys=None,
-                        hooks=None,
+                        hooks=[logging_hook],
                         checkpoint_path=None,
                         yield_single_examples=True)
     print(result)
@@ -37,10 +44,10 @@ def train():
         # print(r['label_length'])
         for i in r['predicts']:
             t = label_vocab[i]
-            if t == '<end>':
-                break
-            else:
-                text.append(label_vocab[i])
+        #    if t == '<end>':
+        #        break
+        #    else:
+            text.append(label_vocab[i])
         text = ' '.join(text)
         print('文本结果：', text)
 

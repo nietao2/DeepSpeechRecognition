@@ -18,8 +18,9 @@ def transformer_hparams():
         input_maxlen = 60,
         label_maxlen = 60,
         num_units = 512,
-        dropout_rate = 0.2,
+        dropout_rate = 0.3,
         lr = 0.0001,
+        warmup_steps = 10000,
         is_training = True)
     return params
 
@@ -53,33 +54,45 @@ class LMTransformer(tf.estimator.Estimator):
         #5. linear
         logits = tf.layers.dense(decoded, self.hp.label_vocab_size)
         #6. softmax
-        outputs = tf.nn.softmax(logits)
+        outputs = tf.nn.softmax(logits, axis=-1)
+        predicts = tf.cast(tf.argmax(outputs, axis=-1), tf.int32, name="predicts")
         if mode == tf.estimator.ModeKeys.PREDICT:
             predictions = {
-                'predicts': tf.cast(tf.argmax(outputs, axis=-1), tf.int32),
+                'predicts': predicts,
                 'logits': logits
             }
             return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
         label_smooth = self.label_smoothing(tf.one_hot(labels['y'], depth=self.hp.label_vocab_size))
         ce = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=label_smooth)
-        nonpadding = tf.to_float(tf.not_equal(labels['y'], 0))  # 0: <pad>
+        nonpadding = tf.to_float(tf.not_equal(labels['y'], 0), name="nonpadding")  # 0: <pad>
         # tf.print(nonpadding, output_stream=tf.logging.INFO)
         loss = tf.reduce_sum(ce * nonpadding) / (tf.reduce_sum(nonpadding) + 1e-7)
+        acc = tf.metrics.mean(tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels['y']))*nonpadding)/ (tf.reduce_sum(nonpadding)))
+        # acc = tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels))*nonpadding)/ (tf.reduce_sum(nonpadding))
+
+        metrics = {'acc': acc}
+        tf.summary.scalar('acc', acc[1])
+        # tf.summary.scalar('outputs', outputs)
+        # tf.summary.scalar('nonpadding', nonpadding)
         if mode == tf.estimator.ModeKeys.EVAL:
-            acc = tf.metrics.mean(tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels['y']))*nonpadding)/ (tf.reduce_sum(nonpadding)))
-            # acc = tf.reduce_sum(tf.to_float(tf.equal(tf.cast(tf.argmax(outputs, axis=-1), tf.int32), labels))*nonpadding)/ (tf.reduce_sum(nonpadding))
-            tf.summary.scalar('acc', acc[1])
-            metrics = {'acc': acc}
+
             return tf.estimator.EstimatorSpec(
                 mode, loss=loss,
                 eval_metric_ops=metrics
             )
 
         assert mode == tf.estimator.ModeKeys.TRAIN
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.hp.lr, beta1=0.9, beta2=0.98, epsilon=1e-9)
+        lr = self.noam_scheme(self.hp.lr, global_step=tf.train.get_global_step(), warmup_steps=self.hp.warmup_steps)
+        optimizer = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.98, epsilon=1e-9)
+        tf.summary.scalar('lr', lr)
 
-        train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+        grads_and_vars = optimizer.compute_gradients(loss)
+        train_op = optimizer.apply_gradients(grads_and_vars, global_step=tf.train.get_global_step())
+        for grad, var in grads_and_vars:
+            tf.summary.histogram(var.name + '/gradient', grad)
+
+        # train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
         return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
 
 
@@ -133,7 +146,7 @@ class LMTransformer(tf.estimator.Estimator):
                 outputs *= num_units ** 0.5
         return outputs
 
-    def encoder(self, enc, training=True, reuse=None):
+    def encoder(self, enc, training=True, reuse=tf.AUTO_REUSE):
         with tf.variable_scope("encoder", reuse=reuse):
             for i in range(self.hp.num_blocks):
                 with tf.variable_scope('encoder_block_{}'.format(i), reuse=reuse):
@@ -149,7 +162,7 @@ class LMTransformer(tf.estimator.Estimator):
                     enc = self.feed_forward(enc, num_units=[self.hp.d_ff, self.hp.d_model])
         return enc
 
-    def decoder(self, dec, encoded, training=True, reuse=None):
+    def decoder(self, dec, encoded, training=True, reuse=tf.AUTO_REUSE):
         with tf.variable_scope("decoder", reuse=reuse):
             for i in range(self.hp.num_blocks):
                 with tf.variable_scope("decoder_blocks_{}".format(i), reuse=tf.AUTO_REUSE):
@@ -198,10 +211,10 @@ class LMTransformer(tf.estimator.Estimator):
         elif type in ("f", "future", "right"):
             diag_vals = tf.ones_like(inputs[0, :, :])  # (T_q, T_k)
             tril = tf.linalg.LinearOperatorLowerTriangular(diag_vals).to_dense()  # (T_q, T_k)
-            masks = tf.tile(tf.expand_dims(tril, 0), [tf.shape(inputs)[0], 1, 1])  # (N, T_q, T_k)
+            masks = tf.tile(tf.expand_dims(tril, 0), [tf.shape(inputs)[0], 1, 1], name="future_mask")  # (N, T_q, T_k)
 
             paddings = tf.ones_like(masks) * padding_num
-            outputs = tf.where(tf.equal(masks, 0), paddings, inputs)
+            outputs = tf.where(tf.equal(masks, 0), paddings, inputs, name="future_label")
         else:
             print("Check if you entered type correctly!")
 
@@ -223,6 +236,9 @@ class LMTransformer(tf.estimator.Estimator):
                 outputs = self.mask(outputs, type="future")
             #softmax   s
             outputs = tf.nn.softmax(outputs)
+            attention = tf.transpose(outputs, [0, 2, 1])
+            tf.summary.image("attention", tf.expand_dims(attention[:1], -1))
+
             #matmul (s, v)
             outputs = self.mask(outputs, q, k, type='query')
             outputs = tf.layers.dropout(outputs, rate=dropout_rate, training=training)
@@ -235,16 +251,22 @@ class LMTransformer(tf.estimator.Estimator):
                             is_training=True,
                             causality=False,
                             scope="multihead_attention",
-                            reuse=None):
+                            reuse=tf.AUTO_REUSE):
         with tf.variable_scope(scope, reuse=reuse):
             if num_units is None:
                 num_units = q.get_shape().as_list()[-1]
             #linear(q)
-            q_ = tf.layers.dense(q, num_units, activation=tf.nn.relu)
+            q_ = tf.layers.dense(q, num_units, use_bias=False,
+                                 # activation=tf.nn.relu
+                                 )
             #linear(k)
-            k_ = tf.layers.dense(k, num_units, activation=tf.nn.relu)
+            k_ = tf.layers.dense(k, num_units, use_bias=False,
+                                 # activation=tf.nn.relu
+                                 )
             #linear(v)
-            v_ = tf.layers.dense(v, num_units, activation=tf.nn.relu)
+            v_ = tf.layers.dense(v, num_units, use_bias=False,
+                                 # activation=tf.nn.relu
+                                 )
             q_ = tf.concat(tf.split(q_, num_heads, axis=2), axis=0) # (h*N, T_q, d_model/h)
             k_ = tf.concat(tf.split(k_, num_heads, axis=2), axis=0) # (h*N, T_k, d_model/h)
             v_ = tf.concat(tf.split(v_, num_heads, axis=2), axis=0) # (h*N, T_k, d_model/h)
@@ -299,7 +321,7 @@ class LMTransformer(tf.estimator.Estimator):
             mean, variance = tf.nn.moments(inputs, [-1], keep_dims=True)
             beta= tf.get_variable("beta", params_shape, initializer=tf.zeros_initializer())
             gamma = tf.get_variable("gamma", params_shape, initializer=tf.ones_initializer())
-            normalized = (inputs - mean) / ( (variance + epsilon) ** (.5) )
+            normalized = (inputs - mean) / ((variance + epsilon) ** .5)
             outputs = gamma * normalized + beta
 
         return outputs
@@ -336,3 +358,13 @@ class LMTransformer(tf.estimator.Estimator):
         '''
         V = inputs.get_shape().as_list()[-1] # number of channels
         return ((1-epsilon) * inputs) + (epsilon / V)
+
+    def noam_scheme(self, init_lr, global_step, warmup_steps=4000.):
+        '''Noam scheme learning rate decay
+        init_lr: initial learning rate. scalar.
+        global_step: scalar.
+        warmup_steps: scalar. During warmup_steps, learning rate increases
+            until it reaches init_lr.
+        '''
+        step = tf.cast(global_step + 1, dtype=tf.float32)
+        return init_lr * warmup_steps ** 0.5 * tf.minimum(step * warmup_steps ** -1.5, step ** -0.5)
